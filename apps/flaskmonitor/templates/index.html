@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Windows Update Extractor Monitor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .stats-panel, .updates-panel, .log-panel, .top-cpu-panel, .ports-panel {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .update-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .log-line {
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 5px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        h3 {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sandbox Monitor</h1>
+        
+        <!-- System Stats Panel -->
+        <div class="stats-panel">
+            <h2>System Statistics</h2>
+            <div>
+                <p>CPU Usage:</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ system_stats.cpu_percent }}%"></div>
+                </div>
+                <p>{{ system_stats.cpu_percent }}%</p>
+            </div>
+            <div>
+                <p>Memory Usage:</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ system_stats.memory_percent }}%"></div>
+                </div>
+                <p>{{ system_stats.memory_percent }}%</p>
+            </div>
+            <div>
+                <p>Disk Usage:</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ system_stats.disk_percent }}%"></div>
+                </div>
+                <p>{{ system_stats.disk_percent }}%</p>
+            </div>
+        </div>
+        
+        <!-- Top CPU Panel -->
+        <div class="top-cpu-panel">
+            <h2>Top CPU Usage</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>PID</th>
+                        <th>Name</th>
+                        <th>CPU %</th>
+                        <th>Memory %</th>
+                    </tr>
+                </thead>
+                <tbody id="top-cpu-body">
+                    {% for process in top_cpu %}
+                    <tr>
+                        <td>{{ process.pid }}</td>
+                        <td>{{ process.name }}</td>
+                        <td>{{ process.cpu_percent|round(1) }}%</td>
+                        <td>{{ process.memory_percent|round(1) }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Recent Updates (Optional) -->
+        <div class="updates-panel">
+            <h2>Recent Updates</h2>
+            {% if updates %}
+                {% for update in updates %}
+                <div class="update-item">
+                    <h3>{{ update.title }}</h3>
+                    <p><strong>KB:</strong> {{ update.kb_number }}</p>
+                    <p><strong>ID:</strong> {{ update.id }}</p>
+                    <p><strong>File:</strong> {{ update.file_name }}</p>
+                    <p><strong>Processed:</strong> {{ update.processed_date }}</p>
+                    <p>{{ update.description }}</p>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>{{ total_count }}</p>
+            {% endif %}
+        </div>
+        
+        <!-- Listening TCP Ports Panel -->
+        <div class="ports-panel">
+            <h2>Listening TCP Ports</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Local Address</th>
+                        <th>PID</th>
+                        <th>Process Name</th>
+                    </tr>
+                </thead>
+                <tbody id="ports-body">
+                    <!-- Will be filled by AJAX -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Recent Logs Panel -->
+        <div class="log-panel">
+            <h2>Recent Logs</h2>
+            {% if log_tail %}
+                {% for filename, lines in log_tail.items() %}
+                    <h3>{{ filename }}</h3>
+                    {% for line in lines %}
+                    <div class="log-line">{{ line }}</div>
+                    {% endfor %}
+                {% endfor %}
+            {% else %}
+                <p>No logs found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- jQuery for AJAX -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    function updateTopCpu() {
+        $.getJSON('/api/top_cpu', function(data) {
+            var rows = '';
+            $.each(data, function(i, process) {
+                rows += '<tr><td>' + process.pid + '</td><td>' 
+                      + (process.name || '') + '</td><td>' 
+                      + process.cpu_percent.toFixed(1) + '%</td><td>'
+                      + process.memory_percent.toFixed(1) + '%</td></tr>';
+            });
+            $('#top-cpu-body').html(rows);
+        });
+    }
+
+    function updateStats() {
+        $.getJSON('/api/stats', function(data) {
+            // Update system stats
+            $('.stats-panel .progress-fill').each(function(i, el) {
+                var type = $(el).parent().prev().text().toLowerCase().replace(' usage:', '');
+                var value = data.system[type + '_percent'];
+                $(el).css('width', value + '%');
+                $(el).parent().next().text(value.toFixed(1) + '%');
+            });
+
+            // Update log panel
+            var logPanel = $('.log-panel');
+            var newLogHtml = '<h2>Recent Logs</h2>';
+            $.each(data.log_tail, function(filename, lines) {
+                newLogHtml += '<h3>' + filename + '</h3>';
+                $.each(lines, function(i, line) {
+                    newLogHtml += '<div class="log-line">' + line + '</div>';
+                });
+            });
+            logPanel.html(newLogHtml);
+        });
+    }
+
+    function updateListeningPorts() {
+        $.getJSON('/api/listening_ports', function(data) {
+            var rows = '';
+            $.each(data, function(i, portInfo) {
+                rows += '<tr><td>' + (portInfo.laddr || '') + '</td><td>' 
+                      + (portInfo.pid || '') + '</td><td>' 
+                      + (portInfo.process || '') + '</td></tr>';
+            });
+            $('#ports-body').html(rows);
+        });
+    }
+
+    // Refresh every 3 seconds
+    setInterval(updateTopCpu, 3000);
+    setInterval(updateStats, 3000);
+    setInterval(updateListeningPorts, 3000);
+    </script>
+</body>
+</html>
