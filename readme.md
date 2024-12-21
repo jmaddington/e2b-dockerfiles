@@ -47,4 +47,9 @@ Examples:
 
 `e2b template build --path ./webshell --name webshell  --cpu-count 2  --memory-mb 2048 --cmd "/usr/local/bin/start-shellinabox.sh"`
 
+`e2b template build --path ./ubuntu22.04 --name ubuntu2204  --cpu-count 2  --memory-mb 4096 --cmd "/usr/local/bin/start-shellinabox.sh"`
+
+`e2b template build --path ./ubuntu24.04 --name ubuntu2404  --cpu-count 2  --memory-mb 4096 --cmd "/usr/local/bin/start-shellinabox.sh"`
+
+
 **YOU MUST SET THE CMD** for the template to start correctly. It doesn't matter that it is in the dockerfile, the CLI needs it set.
